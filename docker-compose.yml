@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  healthai-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: healthai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  healthai-backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile.backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@healthai-db:5432/healthai
+      - JWT_SECRET=supersecret
+      - AI_SERVICE_URL=http://healthai-service:8000
+    depends_on:
+      - healthai-db
+
+  healthai-service:
+    build:
+      context: ./ai-service
+      dockerfile: ../docker/Dockerfile.ai
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINIAI_API_KEY=YOUR_API_KEY_HERE
+      - WHISPER_API_KEY=YOUR_API_KEY_HERE
+
+volumes:
+  pgdata:
