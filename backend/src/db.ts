@@ -2,63 +2,46 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
-export const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
-});
+// Mock database interactions if no local postgres is running
+class MockPool {
+  async connect() {
+    return {
+      query: async () => ({ rows: [] }),
+      release: () => { }
+    };
+  }
+
+  async query(text: string, params?: any[]) {
+    console.log("Mock SQL Execution:", text);
+    // Fake returning rows for RETURNING * clauses
+    if (text.includes("INSERT INTO symptom_assessments")) {
+      return { rows: [{ id: 'mock-uuid', risk_score: params![3] }] };
+    }
+    if (text.includes("INSERT INTO chat_messages")) {
+      return { rows: [{ id: 'mock-uuid', content: params![1] }] };
+    }
+    return { rows: [] };
+  }
+}
+
+export const pool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL
+}) : new MockPool() as unknown as Pool;
 
 export const initDb = async () => {
-    const client = await pool.connect();
-    try {
-        await client.query(`
-      CREATE TABLE IF NOT EXISTS Users (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(100),
-        email VARCHAR(100) UNIQUE,
-        password VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      
-      CREATE TABLE IF NOT EXISTS Symptoms (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES Users(id),
-        symptoms TEXT[],
-        ai_questions JSONB,
-        predicted_conditions JSONB,
-        risk_score INT,
-        severity VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+  if (!process.env.DATABASE_URL) {
+    console.log("No DATABASE_URL provided. Running with Mock In-Memory Database for local testing.");
+    return;
+  }
 
-      CREATE TABLE IF NOT EXISTS HealthLogs (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES Users(id),
-        symptoms TEXT[],
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS ChatHistory (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES Users(id),
-        message TEXT,
-        response TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS Predictions (
-        id SERIAL PRIMARY KEY,
-        user_id INT REFERENCES Users(id),
-        disease VARCHAR(100),
-        probability FLOAT,
-        severity VARCHAR(50)
-      );
-    `);
-        console.log('Database tables initialized');
-    } catch (err) {
-        console.error('Database initialization error', err);
-    } finally {
-        client.release();
-    }
+  const client = await pool.connect();
+  try {
+    console.log("Postgres connected.");
+  } catch (err) {
+    console.error('Database initialization error', err);
+  } finally {
+    client.release();
+  }
 };
 
 initDb();

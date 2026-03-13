@@ -24,30 +24,41 @@ export default function SymptomCheckerPage() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsAnalyzing(true);
 
-        // Simulate AI processing
-        setTimeout(() => {
-            // Generate a mock risk score based on inputs (simplified logic)
-            // Ideally this would come from the AI backend
-            let risk = 15;
-            if (parseInt(formData.bloodOxygen) < 95) risk += 30;
-            if (parseInt(formData.restingHeartRate) > 100) risk += 20;
-            if (parseInt(formData.activityScore) < 50) risk += 10;
-
-            updateVitals({
-                bloodOxygen: formData.bloodOxygen,
-                restingHeartRate: formData.restingHeartRate,
-                sleepHours: formData.sleepHours,
-                sleepMinutes: formData.sleepMinutes,
-                activityScore: formData.activityScore,
-                healthRiskScore: Math.min(risk, 100).toString()
+        try {
+            const response = await fetch('http://localhost:5000/api/symptoms/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer DUMMY_TOKEN' // Auth mock
+                },
+                body: JSON.stringify(formData)
             });
 
+            if (!response.ok) {
+                console.error("AI Analysis failed to fetch.");
+            } else {
+                const data = await response.json();
+
+                // Update React Global State with AI values 
+                updateVitals({
+                    bloodOxygen: formData.bloodOxygen,
+                    restingHeartRate: formData.restingHeartRate,
+                    sleepHours: formData.sleepHours,
+                    sleepMinutes: formData.sleepMinutes,
+                    activityScore: formData.activityScore,
+                    healthRiskScore: data.risk_score ? data.risk_score.toString() : '50'
+                });
+            }
+        } catch (error) {
+            console.error("AI Connection Error:", error);
+        } finally {
+            setIsAnalyzing(false);
             router.push('/dashboard');
-        }, 2000);
+        }
     };
 
     return (
